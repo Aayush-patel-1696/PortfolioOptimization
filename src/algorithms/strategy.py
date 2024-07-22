@@ -20,11 +20,50 @@ class Strategy(ABC):
         Get the Optimal weights 
         """
 
+    @abstractmethod
+    def run_startegy(self,*args,**kwargs):
+        """
+        Run strategy between this ind
+        """
+
+class ConstrainedBasedStrategy(Strategy):
+
+    def run_startegy(self,price_data,test_size=30*3,strategy_frequency=30):
+
+        weights_dict = {}
+        
+        min_date = (price_data.index[0])
+        max_date = (price_data.index[-1])
+
+        date_range = []
+        current_date = min_date + pd.DateOffset(test_size)
+        while current_date < max_date:
+              date_range.append(current_date)
+              current_date  = current_date + pd.DateOffset(strategy_frequency)
+
+        for index,date in enumerate(date_range[:-2]):
+
+            start_date = date - pd.DateOffset(test_size) 
+            end_date = date
+
+            if end_date <= max_date:
+                pass
+            else:
+                continue
+
+            filtered_price_data = price_data[(price_data.index >= start_date) & (price_data.index <= end_date)]
+            filtered_rtn_data = filtered_price_data.pct_change()[1:]
+
+            wealth_allocations = self.get_optimal_allocations(filtered_rtn_data.T.iloc[:,1:],1)
+            weights_dict[date_range[index+1]] = dict(zip(price_data.columns,wealth_allocations))
+
+        return weights_dict
+    
 
 
 
 
-class CvarMretOpt(Strategy):
+class CvarMretOpt(ConstrainedBasedStrategy):
 
 
     def __init__(self,ratio=0.5,risk_level=0.3):
@@ -88,7 +127,7 @@ class CvarMretOpt(Strategy):
 
         
 
-class MeanSemidevOpt(Strategy):
+class MeanSemidevOpt(ConstrainedBasedStrategy):
 
     def __init__(self,ratio):
        
@@ -100,7 +139,7 @@ class MeanSemidevOpt(Strategy):
         self.array_transpose = None
         self.investment_amount = None
         self.results = None
-
+        
     def get_optimal_allocations(self,returns_data:pd.DataFrame,investment_amount:int=1):
 
         self.array = returns_data.iloc[:, 1:].to_numpy()
@@ -113,7 +152,6 @@ class MeanSemidevOpt(Strategy):
 
     def optimize(self,ratio):
 
-        
         """
             ρ =  Hybrid Risk Measure
             ρ = [Z(x)] = -E[Z(x)] + c σ[Z(x)]
@@ -163,6 +201,4 @@ class EqualyWeighted(Strategy):
         self.array = returns_data.iloc[:, 1:].to_numpy()
         self.num_assets = len(self.array[:,0])
         return (np.ones((1,self.num_assets))/self.num_assets)*investment_amount
-    
-    
     

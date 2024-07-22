@@ -4,7 +4,7 @@ import pandas as pd
 
 class BackTest:
 
-    def __init__(self,price_data:pd.DataFrame,method:Strategy,test_index:int=10,initial_wealth=1):
+    def __init__(self,price_data:pd.DataFrame,method:Strategy,test_index:int=10,initial_wealth=1): # To DO: Start_date and End-Date params
 
         self.prc_data = price_data
         self.test_index = test_index
@@ -28,6 +28,8 @@ class BackTest:
             portfolio_wealths.append(wealth)
 
         return portfolio_wealths
+    
+
     
 
 
