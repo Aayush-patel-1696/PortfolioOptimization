@@ -1,9 +1,9 @@
-
+#%%
 import pandas as pd
 import numpy as np
 from scipy import optimize
-
-
+from scipy.optimize import minimize
+#%%
 """
 Contains the definition of abstract class ScenarioGen
 """
@@ -184,7 +184,7 @@ class MeanSemidevOpt(ConstrainedBasedStrategy):
         
 
 
-class EqualyWeighted(Strategy):
+class EqualyWeighted(ConstrainedBasedStrategy):
 
     def __init__(self):
     
@@ -202,3 +202,71 @@ class EqualyWeighted(Strategy):
         self.num_assets = len(self.array[:,0])
         return (np.ones((1,self.num_assets))/self.num_assets)*investment_amount
     
+class MeanVariance(ConstrainedBasedStrategy):
+    
+    def __init__(self, returns):
+        self.returns = returns
+        self.mean_returns = self.calculate_mean()
+        self.cov_matrix = self.calculate_covariance_matrix()
+
+    def calculate_mean(self) -> pd.Series:
+        mean_returns = self.returns.mean()
+        return mean_returns
+
+    def calculate_covariance_matrix(self) -> pd.DataFrame:
+        covariance_matrix = self.returns.cov()
+        return covariance_matrix
+
+    def portfolio_variance(self, weights):
+        return np.dot(weights.T, np.dot(self.cov_matrix, weights))
+    
+    def min_variance(self, allow_shorting=False):
+        num_assets = len(self.mean_returns)
+        initial_weights = np.ones(num_assets) / num_assets
+        constraints = [{'type': 'eq', 'fun': lambda x: np.sum(x) - 1}]
+
+        if allow_shorting:
+            bounds = tuple((float('-inf'), float('inf')) for _ in range(num_assets))  
+        else:
+            bounds = tuple((0, float('inf')) for _ in range(num_assets))  
+        
+        result = minimize(self.portfolio_variance, initial_weights, method='SLSQP', bounds=bounds, constraints=constraints)
+        return result
+    
+    def min_variance_allocation(self):
+        
+        result = self.min_variance()
+        if result.success:
+            return dict(zip(self.returns.columns, result.x))
+        else:
+            raise ValueError("Optimization failed: " + result.message)
+
+
+    def get_max_return(self) -> float:
+        return self.mean_returns.max()
+
+    def minimize_func(self, weights):
+        return np.matmul(np.matmul(np.transpose(weights), self.cov_matrix), weights)
+    
+    def optimize(self, target_return=None, allow_shorting=False):
+        
+        num_assets = len(self.mean_returns)
+        constraints = [{'type': 'eq', 'fun': lambda weights: np.sum(weights) - 1}]
+        if target_return is not None:
+            constraints.append({'type': 'eq', 'fun': lambda weights: np.dot(weights, self.mean_returns) - target_return})
+        if allow_shorting:
+            bounds = tuple((float('-inf'), float('inf')) for _ in range(num_assets))  
+        else:
+            bounds = tuple((0, float('inf')) for _ in range(num_assets))  
+        initial_weights = np.ones(num_assets) / num_assets
+        result = minimize(self.minimize_func, initial_weights, method='SLSQP', bounds=bounds, constraints=constraints)
+        return result
+
+    def get_optimal_allocations(self):
+        
+        result = self.optimize()
+        if result.success:
+            return dict(zip(self.returns.columns, result.x))
+        else:
+            raise ValueError("Optimization failed: " + result.message)
+# %%
